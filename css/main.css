@@ -1,0 +1,163 @@
+@charset "utf-8";
+
+/* 基本テキスト */
+p {
+  line-height: 1.2;
+}
+
+#log {
+  height: 40vh;
+}
+
+/* 全体設定 */
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  font-family: "Noto Sans JP", sans-serif;
+  color: #000;
+}
+
+/* 地図を背景として全面表示 */
+.map-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+/* 右側の情報パネル（地図の上に重ねる） */
+.info-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 480px;
+  height: calc(100vh - 80px); /* ← 下部バーの高さを引く */
+  background: #fff;
+  z-index: 10;
+  overflow-y: auto;
+  border: 3.5px solid #000;
+}
+
+/* タイトルバー */
+.rq-panel-title {
+  background: #000;
+  color: #fff;
+  padding: 27px;
+  font-size: 42px;
+  font-weight: bold;
+}
+
+/* パネル内容 */
+.rq-panel-content {
+  padding: 45px;
+}
+
+/* 情報テキスト */
+.rq-info-text p {
+  margin: 27px 0;
+  font-size: 30px;
+  color: #000;
+}
+
+/* ログ */
+#log {
+  height: 300px;
+  overflow-y: scroll;
+  border: 1px solid #000;
+  padding: 10px;
+  font-size: 18px;
+}
+
+/* トグル全体（黒バー） */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #000;
+  color: #fff;
+  padding: 15px;
+  border: 3px solid #000;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  width: 420px;           /* ← 固定幅を与える（重要） */
+  box-sizing: border-box; /* ← 枠ズレ防止 */
+}
+
+/* 左のタイトル（通信モード） */
+.toggle-title {
+  font-size: 26px;
+  font-weight: bold;
+  white-space: nowrap;     /* ← 改行禁止（重要） */
+}
+
+/* 右のラベル（WS / Polling） */
+.toggle-label {
+  font-size: 24px;
+  font-weight: bold;
+  white-space: nowrap;     /* ← 改行禁止（重要） */
+}
+
+/* トグルバー（〇ー / ー〇） */
+.toggle-bar {
+  width: 90px;
+  height: 36px;
+  border: 3px solid #fff;
+  border-radius: 20px;
+  position: relative;
+  background: #000;
+  flex-shrink: 0;          /* ← 縮まない（重要） */
+  box-sizing: border-box;
+}
+
+/* 丸（〇） */
+.toggle-circle {
+  width: 28px;
+  height: 28px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 4px;
+  left: 4px;               /* WSモード */
+  transition: left 0.2s ease;
+  box-sizing: border-box;
+}
+
+
+/* 下部固定バー */
+#bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  height: 80px;
+  background: #fff;
+  border-top: 4px solid #000;
+  border-bottom: 4px solid #000;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* 下部バータイトル */
+.bottomBar-title {
+  background: #000;
+  color: #fff;
+  padding: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* 下部バー内容 */
+.bottomBar-content {
+  padding: 20px;
+  font-size: 24px;
+}

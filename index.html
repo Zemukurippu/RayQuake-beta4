@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RayQuake v1.0 beta4</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+/* ============================
+   基本設定
+============================ */
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  font-family: "Noto Sans JP", sans-serif;
+  color: #000;
+}
+
+/* ============================
+   地図（背景として全面表示）
+============================ */
+.map-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+/* ============================
+   右パネル（固定）
+============================ */
+.info-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 480px;
+  height: calc(100vh - 80px); /* ← 下部バーの高さを引く */
+  background: #fff;
+  z-index: 10;
+  overflow-y: auto;
+  border: 3.5px solid #000;
+}
+
+.rq-panel-title {
+  background: #000;
+  color: #fff;
+  padding: 27px;
+  font-size: 42px;
+  font-weight: bold;
+}
+
+.rq-panel-content {
+  padding: 45px;
+}
+
+.rq-info-text p {
+  margin: 27px 0;
+  font-size: 30px;
+}
+
+/* ============================
+   ログ
+============================ */
+#log {
+  height: 300px;
+  overflow-y: scroll;
+  border: 1px solid #000;
+  padding: 10px;
+  font-size: 18px;
+}
+
+/* ============================
+   WS / Polling トグル（黒バー）
+============================ */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #000;
+  color: #fff;
+  padding: 15px;
+  border: 3px solid #000;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  width: 420px;           /* ← 固定幅でズレ防止 */
+  box-sizing: border-box;
+}
+
+.toggle-title,
+.toggle-label {
+  white-space: nowrap;     /* ← 改行禁止（最重要） */
+  width: 140px;            /* ← ボックス幅固定でズレ防止 */
+  display: inline-block;
+}
+
+.toggle-bar {
+  width: 90px;
+  height: 36px;
+  border: 3px solid #fff;
+  border-radius: 20px;
+  position: relative;
+  background: #000;
+  flex-shrink: 0;          /* ← 縮まない */
+  box-sizing: border-box;
+}
+
+.toggle-circle {
+  width: 28px;
+  height: 28px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 4px;
+  left: 4px;               /* WSモード */
+  transition: left 0.2s ease;
+  box-sizing: border-box;
+}
+
+/* ============================
+   下部固定バー
+============================ */
+#bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  height: 80px;
+  background: #fff;
+  border-top: 4px solid #000;
+  border-bottom: 4px solid #000;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  z-index: 9999;
+}
+
+.bottomBar-title {
+  background: #000;
+  color: #fff;
+  padding: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.bottomBar-content {
+  padding: 20px;
+  font-size: 24px;
+}
+</style>
+
+</head>
+<body>
+
+<!-- ============================
+     地図（背景）
+============================ -->
+<div class="map-panel" id="map"></div>
+
+<!-- ============================
+     右パネル
+============================ -->
+<div class="rq-panel info-panel">
+  <div class="rq-panel-title">地震情報</div>
+
+  <div class="rq-panel-content">
+
+    <!-- トグル -->
+    <div id="modeToggle" class="toggle" onclick="toggleMode()">
+      <div class="toggle-title">通信モード</div>
+      <div class="toggle-bar">
+        <div id="toggleCircle" class="toggle-circle"></div>
+      </div>
+      <span id="modeLabel" class="toggle-label">WS モード</span>
+    </div>
+
+    <br><br>
+
+    <div class="rq-info-text" id="info">受信待機中です。</div>
+    <div class="rq-info-text" id="status">接続状態: 未接続</div>
+
+    <div id="log"></div>
+
+    <button id="otherBtn" onclick="toggleOtherMenu()" style="font-size:22px; margin-top:20px; margin-bottom:20px;">
+      その他
+    </button>
+
+    <div id="otherMenu" style="display:none;">
+    <p>これらは開発中の機能であり、正しく動作しない可能性があります。</p>
+      <div class="rq-panel" style="margin-top:20px;">
+        <div class="rq-panel-title" style="font-size:32px; padding:20px;">
+          SecureLock 設定
+        </div>
+
+        <div class="rq-panel-content" style="padding:20px;">
+          <button id="hashToggleBtn">ハッシュ整合性チェック：オフ</button><br><br>
+          <button id="schemaToggleBtn">スキーマ検証：オフ</button><br><br>
+          <button id="crossToggleBtn">データ整合性チェック：オフ</button><br><br>
+          <button id="domToggleBtn">DOM チェック：オフ</button><br><br>
+          <button id="variableToggleBtn">変数改ざんチェック：オフ</button><br><br>
+          <button id="functionToggleBtn">関数改ざんチェック：オフ</button><br><br>
+          <button id="eventToggleBtn">イベント改ざんチェック：オフ</button>
+        </div>
+      </div>
+
+      <div class="rq-panel" style="margin-top:20px;">
+        <div class="rq-panel-title" style="font-size:32px; padding:20px;">
+          管理者テストツール
+        </div>
+
+        <div class="rq-panel-content" style="padding:20px;">
+          <p>管理者パスワードを入力してください：</p>
+          <input id="eewTesterPassword" type="password" placeholder="パスワード">
+          <button onclick="unlockEEWTester()">ロック解除</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================
+     下部固定バー
+============================ -->
+<div id="bottomBar">
+  <div class="bottomBar-title">お知らせ</div>
+  <div class="bottomBar-content">
+    <span id="bottomStatus">利用規約およびプライバシーポリシーは、ホームページに移転しました。</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   ログ関連
+============================================================ */
+const status = document.getElementById("status");
+const log = document.getElementById("log");
+
+function addLog(text) {
+  if (!text) return;
+  const p = document.createElement("p");
+  p.textContent = text;
+  log.appendChild(p);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ============================================================
+   Leaflet 初期化
+============================================================ */
+const map = L.map("map").setView([35, 135], 5);
+
+L.tileLayer(
+  "https://www.jma.go.jp/tile/jma/gray-cities/{z}/{x}/{y}.png",
+  { minZoom: 4, maxZoom: 7, maxNativeZoom: 10 }
+).addTo(map);
+
+/* ============================================================
+   P2P WebSocket / Polling
+============================================================ */
+let p2pWS = null;
+let pollingTimer = null;
+let processedP2P = new Set();
+
+function switchToWS() {
+  stopPolling();
+  connectP2P_WS();
+  addLog("P2P モード: WebSocket に切り替えました");
+}
+
+function switchToPolling() {
+  stopWS();
+  startPolling();
+  addLog("P2P モード: ポーリングに切り替えました");
+}
+
+function connectP2P_WS() {
+  stopWS();
+  p2pWS = new WebSocket("wss://api.p2pquake.net/v2/ws");
+
+  p2pWS.onopen = () => {
+    status.textContent = "接続状態: P2P WS 接続成功";
+    addLog("P2P WS 接続成功");
+  };
+
+  p2pWS.onmessage = (event) => {
+    try {
+      const raw = JSON.parse(event.data);
+      if (raw.type === "heartbeat") return;
+      handleP2P(raw);
+    } catch (e) {
+      addLog("P2P WS エラー: " + e);
+    }
+  };
+
+  p2pWS.onclose = () => {
+    status.textContent = "接続状態: WS切断";
+    addLog("P2P WS 切断");
+  };
+}
+
+function stopWS() {
+  if (p2pWS) {
+    p2pWS.close();
+    p2pWS = null;
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollingTimer = setInterval(async () => {
+    try {
+      const res = await fetch("https://api.p2pquake.net/v2/history?limit=1");
+      const data = await res.json();
+      if (data && data.length > 0) {
+        handleP2P(data[0]);
+      }
+    } catch (e) {
+      addLog("P2P Polling エラー: " + e);
+    }
+  }, 5000);
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+/* ============================================================
+   P2P 表示処理
+============================================================ */
+function handleP2P(raw) {
+  if (!raw || !raw.code) return;
+
+  if (processedP2P.has(raw.id)) return;
+  processedP2P.add(raw.id);
+
+  if (raw.code === 554) handleEQ(raw, "P2P");
+  if (raw.code === 555) handleShindo速報(raw, "P2P");
+  if (raw.code === 556) handleHypocenterInfo(raw, "P2P");
+}
+
+function convertP2PIntensity(scale) {
+  return scale;
+}
+
+function handleEQ(data, source) {
+  const eq = data.earthquake;
+  if (!eq) return;
+
+  const originTime = eq.time;
+  const hypocenter = eq.hypocenter.name;
+  const magnitude = eq.magnitude;
+  const depth = eq.depth;
+  const maxIntensity = convertP2PIntensity(eq.maxScale);
+
+  addLog(`【${source} 地震情報】\n震源: ${hypocenter}\n最大震度: ${maxIntensity}\nM${magnitude}`);
+
+  document.getElementById("info").innerHTML = `
+    <b>発生時刻</b> ${originTime}<br>
+    <b>震源地</b> ${hypocenter}<br>
+    <b>最大震度</b> ${maxIntensity}<br>
+    <b>規模</b> M${magnitude}<br>
+    <b>深さ</b> ${depth} km
+  `;
+}
+
+function handleShindo速報(data, source) {
+  const info = data.earthquake;
+  if (!info) return;
+
+  const maxIntensity = convertP2PIntensity(info.maxScale);
+  const hypocenter = info.hypocenter?.name ?? "震源不明";
+
+  addLog(`【${source} 震度速報】\n震源: ${hypocenter}\n最大震度: ${maxIntensity}`);
+
+  document.getElementById("info").innerHTML = `
+    <b>震度速報</b><br>
+    <b>震源地</b> ${hypocenter}<br>
+    <b>最大震度</b> ${maxIntensity}<br>
+  `;
+}
+
+function handleHypocenterInfo(data, source) {
+  const info = data.earthquake;
+  if (!info) return;
+
+  const originTime = info.time;
+  const hypocenter = info.hypocenter.name;
+  const magnitude = info.magnitude;
+  const depth = info.depth;
+
+  addLog(`【${source} 震源情報】\n震源: ${hypocenter}\nM${magnitude}\n深さ: ${depth}`);
+
+  document.getElementById("info").innerHTML = `
+    <b>震源情報</b><br>
+    <b>発生時刻</b> ${originTime}<br>
+    <b>震源地</b> ${hypocenter}<br>
+    <b>規模</b> M${magnitude}<br>
+    <b>深さ</b> ${depth} km
+  `;
+}
+
+/* ============================================================
+   起動時は WebSocket モード
+============================================================ */
+switchToWS();
+
+/* ============================================================
+   トグル切り替え（ズレゼロ版）
+============================================================ */
+let currentMode = "WS";
+
+function toggleMode() {
+  const circle = document.getElementById("toggleCircle");
+  const label = document.getElementById("modeLabel");
+
+  if (currentMode === "WS") {
+    switchToPolling();
+    currentMode = "Polling";
+    circle.style.left = "52px";  /* ← 正しい右位置 */
+    label.textContent = "Polling モード";
+  } else {
+    switchToWS();
+    currentMode = "WS";
+    circle.style.left = "4px";   /* ← 左位置 */
+    label.textContent = "WS モード";
+  }
+}
+
+/* ============================================================
+   その他メニュー
+============================================================ */
+function toggleOtherMenu() {
+  const menu = document.getElementById("otherMenu");
+  const btn = document.getElementById("otherBtn");
+
+  if (menu.style.display === "none") {
+    menu.style.display = "block";
+    btn.textContent = "閉じる";
+  } else {
+    menu.style.display = "none";
+    btn.textContent = "その他（開発中の機能）";
+  }
+}
+
+/* ============================================================
+   管理者テストUI ロック解除（ハッシュ認証版）
+============================================================ */
+const correctHash = "c350262dc1fb2ca3ddad884d0d6f4ca02c2204e86d5f6f6e364184b31f367271";
+
+async function unlockEEWTester() {
+  const pass = document.getElementById("eewTesterPassword").value;
+  const hash = await sha256(pass);
+
+  if (hash === correctHash) {
+    addLog("管理者モードが有効化されました。（ハッシュ認証）");
+    alert("管理者モードが有効化されました。");
+
+    if (typeof secureDisableDOMCheck === "function") {
+      secureDisableDOMCheck();
+    }
+  } else {
+    alert("パスワードが違います。");
+  }
+}
+</script>
+
+<script src="./SecureLock_v1.js"></script>
+
+</body>
+</html>
